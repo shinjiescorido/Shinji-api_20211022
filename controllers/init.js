@@ -59,7 +59,7 @@ module.exports = {
 		res.status(200).json( await Product.paginate( {},{
 			select: 'code name price',
 			leanWithId: false,
-			limit: 10,page:page || 1
+			limit: 50,page:page || 1
 		}))
 	},
 
