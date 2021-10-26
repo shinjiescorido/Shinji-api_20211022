@@ -1,6 +1,7 @@
 const router = require('express').Router()
 const controller = require('../controllers/init')
 
+
 router.get('/', controller.get)
 router.get('/populate', controller.populate)
 router.post('/', controller.post)

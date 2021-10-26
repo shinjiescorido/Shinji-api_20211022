@@ -1,6 +1,7 @@
 const axios = require('axios')
 const Product = require('../model/Product')
 const _ = require('lodash')
+const { createValidation, editValidation, deleteValidation } = require('../validation')
 
 let errorHandler = (message, status, res) => {
     return res.status(status).json({
@@ -8,7 +9,6 @@ let errorHandler = (message, status, res) => {
         message: message
     })
 }
-
 module.exports = {
 
 	/**
@@ -17,23 +17,23 @@ module.exports = {
 	 * @return {object} success json message
 	 */
     populate : async (req,res) => {        
-        try {
+		try {
 			let page = 1
 			let products = []
+
 			await (async function loop() {
-					let result = await axios({
-					  method: 'get',
-					  url: process.env.POPULATE_API + page,
-					  headers: {'apikey': process.env.POPULATE_TOKEN}
-					})
-					 if(result.status == 200) {
-						 if(result.data.products.length){
-							products = _.union(products, _.map(result.data.products,p=>p))
-							page++;
-							await loop()
-						 }
-					 }
+				let result = await axios({
+					method: 'get',
+					url: process.env.POPULATE_API + page,
+					headers: {'apikey': process.env.POPULATE_TOKEN}
+				})
+				if(result.status == 200 && result.data.products.length) {
+					products = _.union(products, _.map(result.data.products,p=>p))
+					page++;
+					await loop()
+				}
 			}());
+
 			await Product.bulkWrite(_.map(products, product => ({
 				updateOne: {
 					filter: {name: product.name},
@@ -42,10 +42,10 @@ module.exports = {
 				}
 			})))
 			res.status(200).json({ upload: 'ok' })
-        } catch (error) {
+		} catch (error) {
 			console.log(error)
-            errorHandler('Server Error', 500, res)
-        }
+			errorHandler('Server Error', 500, res)
+		}
     },
 
 	/**
@@ -72,8 +72,15 @@ module.exports = {
 	 * @return {object} product json values
 	*/
 	post: async( req, res ) => {
+		let {name,code,price} = req.body
+		
+		// validate parameters
+		let {error} = createValidation({name,code,price})
+		if(error) return errorHandler(error.details[0].message, 401, res)
+
 		let product = new Product(req.body)
-		res.status(200).json(await product.save())
+
+		return res.status(200).json(await product.save())
 	},
 
 	/**
@@ -86,12 +93,21 @@ module.exports = {
 	 * @return {object} product json values
 	*/
 	put: async( req, res ) => {
-		let product = await Product.findById(req.params.id)
-		
+		let { name, code, price } = req.body
+		let id = req.params.id
+
+		// validate parameters
+		let {error}= editValidation({name,code,price,id})
+		if(error) return errorHandler(error.details[0].message, 401, res)
+
+		let product = await Product.findById(id)
+
+		if(!product) errorHandler('product id not found', 401, res)
+
 		product.name = req.body.name
 		product.code = req.body.code
 		product.price = req.body.price
-		
+
 		res.status(200).json(await product.save())
 	},
 
@@ -102,7 +118,16 @@ module.exports = {
 	 * @return {object} deleteOne json response
 	*/
 	trash: async( req, res ) => {
-		const product = await Product.deleteOne({_id:req.params.id})
-        res.status(200).json(product)
+		let id = req.params.id
+		
+		// validate parameters
+		let {error}= deleteValidation({id})
+		if(error) return errorHandler(error.details[0].message, 401, res)
+		
+		const product = await Product.deleteOne({_id:id})
+
+		if(!product) errorHandler('product id not found', 401, res)
+
+		res.status(200).json(product)
 	}
 }
